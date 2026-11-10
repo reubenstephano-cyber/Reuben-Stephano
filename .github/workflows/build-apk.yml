@@ -1,4 +1,5 @@
 name: Build Android APK
+
 on:
   workflow_dispatch:
     inputs:
@@ -9,25 +10,58 @@ on:
       app_name:
         description: "App name on the phone"
         default: "SmartCheck"
+
 jobs:
   apk:
     runs-on: ubuntu-latest
     env:
       APP_URL: ${{ inputs.app_url }}
       APP_NAME: ${{ inputs.app_name }}
+      ANDROID_HOME: ${{ github.workspace }}/android-sdk
+      ANDROID_SDK_ROOT: ${{ github.workspace }}/android-sdk
+
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
-        with: { node-version: 20 }
+        with:
+          node-version: 20
+
       - uses: actions/setup-java@v4
-        with: { distribution: temurin, java-version: 17 }
-      - uses: android-actions/setup-android@v3
-      - run: npm install
-      - run: npx cap add android
-      - run: node scripts/patch-android.mjs
-      - run: npx capacitor-assets generate --android
-      - run: npx cap sync android
-      - run: cd android && chmod +x gradlew && ./gradlew assembleDebug
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Install Android SDK tools and platform
+        run: |
+          mkdir -p "$ANDROID_HOME"
+          echo "y" | sdkmanager --install "platform-tools" "platforms;android-34" "build-tools;34.0.0"
+
+      - name: Accept Android SDK licenses
+        run: |
+          yes | sdkmanager --licenses
+
+      - name: Install npm dependencies
+        run: npm install
+
+      - name: Add Android platform
+        run: npx cap add android
+
+      - name: Patch Android
+        run: node scripts/patch-android.mjs
+
+      - name: Generate Capacitor assets
+        run: npx capacitor-assets generate --android
+
+      - name: Sync Capacitor
+        run: npx cap sync android
+
+      - name: Build APK
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug
+
       - uses: actions/upload-artifact@v4
         with:
           name: smartcheck-debug-apk
